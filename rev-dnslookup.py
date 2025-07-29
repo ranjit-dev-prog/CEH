@@ -4,6 +4,7 @@ import dns.reversename
 import ssl
 from urllib.parse import urlparse
 import requests
+import argparse
 
 def check_url_safety(url):
     try:
@@ -85,7 +86,10 @@ def dns_info_tool(input_value):
             print(f"🔁 PTR Record: {reverse_dns_lookup(ip)}")
             resolve_dns(domain)
 
-# 🔧 Test it here
+# ✅ MAIN (CLI input supported)
 if __name__ == "__main__":
-    user_input = input("Enter URL or IP: ")
-    dns_info_tool(user_input)
+    parser = argparse.ArgumentParser(description="Reverse DNS & DNS Info Tool")
+    parser.add_argument("target", help="Enter URL or IP address")
+    args = parser.parse_args()
+
+    dns_info_tool(args.target)
