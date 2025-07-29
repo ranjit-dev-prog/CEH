@@ -1,11 +1,15 @@
 import socket
+import sys
 from urllib.parse import urlparse
 
-def extract_ip_from_https(url):
-    parsed = urlparse(url)
-    if parsed.scheme != 'https':
-        raise ValueError("❌ Only HTTPS URLs allowed.")
-    return socket.gethostbyname(parsed.hostname)
+def extract_ip(target):
+    try:
+        # If it's a URL, parse and extract domain
+        parsed = urlparse(target if '://' in target else f'http://{target}')
+        hostname = parsed.hostname
+        return socket.gethostbyname(hostname)
+    except socket.gaierror:
+        raise ValueError("❌ Invalid domain or IP.")
 
 def whois_tcp_query(server: str, query: str) -> str:
     with socket.create_connection((server, 43), timeout=10) as s:
@@ -20,7 +24,6 @@ def whois_tcp_query(server: str, query: str) -> str:
 
 def parse_whois_fields(data: str, keys=None):
     if keys is None:
-        # Common WHOIS fields
         keys = {
             "inetnum", "netrange", "netname", "descr", "org",
             "org-name", "country", "admin-c", "tech-c",
@@ -56,9 +59,13 @@ def whois_lookup_ip(ip: str):
         parse_whois_fields(base_data)
 
 def main():
+    if len(sys.argv) != 2:
+        print("Usage: python whois.py <domain/IP/URL>")
+        sys.exit(1)
+
+    user_input = sys.argv[1]
     try:
-        url = input("Enter HTTPS URL: ").strip()
-        ip = extract_ip_from_https(url)
+        ip = extract_ip(user_input)
         whois_lookup_ip(ip)
     except Exception as e:
         print(f"❌ Error: {e}")
