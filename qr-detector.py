@@ -1,6 +1,7 @@
 import cv2
 import validators
 import os
+import argparse
 
 # 🛡️ List of suspicious indicators
 SUSPICIOUS_KEYWORDS = [
@@ -60,9 +61,11 @@ def analyze_qr_image(image_path):
     print("===================")
 
 def main():
-    print("== QR CODE MALWARE & URL SCANNER ==")
-    img_path = input("Enter path to QR code image: ").strip()
-    analyze_qr_image(img_path)
+    parser = argparse.ArgumentParser(description="QR Code Malware & URL Risk Scanner")
+    parser.add_argument("image", help="Path to the QR code image (e.g., qr.png or qr.jpg)")
+    args = parser.parse_args()
+
+    analyze_qr_image(args.image)
 
 if __name__ == "__main__":
     main()
