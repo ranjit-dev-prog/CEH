@@ -1,5 +1,6 @@
 import re
 import requests
+import argparse
 from urllib.parse import urlparse, urlunparse
 
 SHORTENERS = {
@@ -50,6 +51,10 @@ def process_user_url(url):
     except Exception as e:
         return f"[⚠️] Error → {e}: {url}"
 
-# 📎 Try it
-user_input = input("Enter a URL: ").strip()
-print(process_user_url(user_input))
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Safe URL Cleaner and Validator")
+    parser.add_argument("url", help="The URL to validate and clean")
+    args = parser.parse_args()
+    
+    result = process_user_url(args.url)
+    print(result)
