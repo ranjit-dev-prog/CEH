@@ -1,11 +1,12 @@
 import ssl
 import socket
+import sys
 from urllib.parse import urlparse
 import datetime
 import idna
 import warnings
 
-# Suppress UTC warning for now
+# Suppress deprecation warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
 def is_https_url(url):
@@ -24,7 +25,6 @@ def validate_certificate(cert):
     not_before = cert.get('notBefore')
     not_after = cert.get('notAfter')
 
-    # Convert cert dates
     fmt = "%b %d %H:%M:%S %Y %Z"
     start_date = datetime.datetime.strptime(not_before, fmt)
     exp_date = datetime.datetime.strptime(not_after, fmt)
@@ -40,33 +40,39 @@ def validate_certificate(cert):
         "is_valid": is_valid
     }
 
+def print_cert_info(cert_info):
+    print("\n🔐 Certificate Info:")
+    print(f"   🔹 Issued To: {cert_info['issued_to']}")
+    print(f"   🔹 Issued By: {cert_info['issued_by']}")
+    print(f"   📅 Valid From: {cert_info['valid_from']}")
+    print(f"   📅 Valid Until: {cert_info['valid_until']}")
+    
+    if cert_info['is_valid']:
+        print("✅ Certificate is valid.")
+    else:
+        print("❌ Certificate is INVALID or EXPIRED.")
+
 def main():
-    url = input("🔐 Enter HTTPS URL to check certificate: ").strip()
+    if len(sys.argv) != 2:
+        print("Usage: python httpscheck.py https://example.com")
+        return
+
+    url = sys.argv[1].strip()
 
     if not is_https_url(url):
-        print("❌ This tool only supports HTTPS URLs for SSL checking.")
+        print("❌ Only HTTPS URLs are supported.")
         return
 
     try:
         parsed = urlparse(url)
         hostname = parsed.hostname
-        hostname = idna.encode(hostname).decode('utf-8')  # IDN support
-        print(f"🔍 Checking certificate for: {hostname}")
-        
+        hostname = idna.encode(hostname).decode('utf-8')  # IDN-safe
+        print(f"🔍 Checking SSL certificate for: {hostname}")
+
         cert = get_certificate_info(hostname)
         cert_info = validate_certificate(cert)
+        print_cert_info(cert_info)
 
-        print("\n🔐 Certificate Info:")
-        print(f"   🔹 Issued To: {cert_info['issued_to']}")
-        print(f"   🔹 Issued By: {cert_info['issued_by']}")
-        print(f"   📅 Valid From: {cert_info['valid_from']}")
-        print(f"   📅 Valid Until: {cert_info['valid_until']}")
-        
-        if cert_info['is_valid']:
-            print("✅ Certificate is valid.")
-        else:
-            print("❌ Certificate is INVALID or EXPIRED.")
-    
     except socket.gaierror:
         print("❌ Could not resolve hostname.")
     except socket.timeout:
