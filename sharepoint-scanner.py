@@ -1,7 +1,7 @@
 """
-Sharepoint Scanner - URL Information and Technology Detection
+SharePoint Scanner - URL Information and Technology Detection
 
-Required third-party libraries:
+Third-party Libraries:
 - requests
 - Wappalyzer (python-Wappalyzer)
 - urllib3
@@ -9,182 +9,178 @@ Required third-party libraries:
 
 Install with:
 pip install requests python-Wappalyzer urllib3 cryptography
-
 """
 
+import sys
 import socket
 import ssl
-import sys
+import datetime
+import requests
+import dns.resolver
 from urllib.parse import urlparse
-import requests
 
-import requests
-
+# Wappalyzer detection
 try:
     from Wappalyzer import Wappalyzer, WebPage
     wappalyzer_available = True
 except ImportError:
-    print("Warning: python-Wappalyzer module not found. Technology detection will be limited.")
+    print("Warning: python-Wappalyzer not found. Technology detection will be limited.")
     wappalyzer_available = False
 
+# ------------------- Safety Check ------------------- #
 def is_url_suspicious(url):
-    """
-    Perform a URL safety check to detect suspicious URLs.
-    This example checks basic URL format and tries to connect.
-    More advanced checks can be added as needed.
-    """
     parsed = urlparse(url)
     if not parsed.scheme or not parsed.netloc:
         print("Invalid URL format.")
         return True
 
-    # Basic suspicious pattern checks (can be extended)
     suspicious_keywords = ['phishing', 'malware', 'attack', 'suspicious']
     for keyword in suspicious_keywords:
         if keyword in url.lower():
-            print(f"URL contains suspicious keyword: {keyword}")
+            print(f"Suspicious keyword detected: {keyword}")
             return True
 
     try:
-        # Try to open a socket connection to the host on port 80 or 443
         host = parsed.netloc
         port = 443 if parsed.scheme == 'https' else 80
-        sock = socket.create_connection((host, port), timeout=5)
-        sock.close()
-        return False
-    except (socket.timeout, socket.error):
-        print(f"Unable to connect to {host} on port {port}. URL considered suspicious or unreachable.")
+        with socket.create_connection((host, port), timeout=5):
+            return False
+    except Exception:
+        print(f"Could not connect to {host}. Marked as suspicious.")
         return True
 
-import datetime
+# ------------------- DNS Info ------------------- #
+def get_dns_records(domain):
+    dns_info = {}
+    try:
+        dns_info['A'] = [r.to_text() for r in dns.resolver.resolve(domain, 'A')]
+    except:
+        dns_info['A'] = []
 
+    try:
+        dns_info['AAAA'] = [r.to_text() for r in dns.resolver.resolve(domain, 'AAAA')]
+    except:
+        dns_info['AAAA'] = []
+
+    try:
+        dns_info['MX'] = [r.to_text() for r in dns.resolver.resolve(domain, 'MX')]
+    except:
+        dns_info['MX'] = []
+
+    try:
+        dns_info['NS'] = [r.to_text() for r in dns.resolver.resolve(domain, 'NS')]
+    except:
+        dns_info['NS'] = []
+
+    return dns_info
+
+# ------------------- IP and Hosting Info ------------------- #
+def get_hosting_ip(hostname):
+    try:
+        return socket.gethostbyname(hostname)
+    except:
+        return None
+
+def get_hosting_provider(ip):
+    try:
+        r = requests.get(f"https://ipinfo.io/{ip}/json", timeout=5)
+        if r.status_code == 200:
+            return r.json().get("org", "Unknown")
+    except:
+        pass
+    return "Unknown"
+
+# ------------------- SSL Certificate ------------------- #
 def get_certificate_expiry_date(hostname):
-    """
-    Retrieve SSL certificate expiry date for the given hostname.
-    """
     try:
         context = ssl.create_default_context()
         with socket.create_connection((hostname, 443), timeout=5) as sock:
             with context.wrap_socket(sock, server_hostname=hostname) as ssock:
                 cert = ssock.getpeercert()
-                expiry = cert.get('notAfter')
-                return expiry
-    except Exception as e:
+                return cert.get('notAfter')
+    except:
         return None
 
-def get_certificate_status(expiry_date_str):
-    """
-    Determine SSL certificate status based on expiry date string.
-    Returns 'Valid' if expiry date is in the future, 'Expired' if past, or 'Unknown' if invalid.
-    """
-    if not expiry_date_str:
+def get_certificate_status(expiry_str):
+    if not expiry_str:
         return "Unknown"
     try:
-        expiry_date = datetime.datetime.strptime(expiry_date_str, '%b %d %H:%M:%S %Y %Z')
-        now = datetime.datetime.utcnow()
-        if expiry_date > now:
-            return "Valid"
-        else:
-            return "Expired"
-    except Exception:
+        expiry_date = datetime.datetime.strptime(expiry_str, '%b %d %H:%M:%S %Y %Z')
+        return "Valid" if expiry_date > datetime.datetime.utcnow() else "Expired"
+    except:
         return "Unknown"
 
-def get_hosting_provider(ip):
-    """
-    Query ipinfo.io API to get hosting provider information for the given IP address.
-    """
-    try:
-        response = requests.get(f"https://ipinfo.io/{ip}/json", timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            org = data.get('org', 'Unknown')
-            return org
-        else:
-            return "Unknown"
-    except Exception:
-        return "Unknown"
-
-def get_hosting_ip(hostname):
-    """
-    Resolve the IP address of the hostname.
-    """
-    try:
-        ip = socket.gethostbyname(hostname)
-        return ip
-    except Exception as e:
-        return None
-
+# ------------------- Technology Detection ------------------- #
 def detect_technology(url):
-    """
-    Use Wappalyzer to detect technologies used by the website.
-    If Wappalyzer is not available, fall back to basic detection from HTTP headers.
-    """
     if wappalyzer_available:
         try:
             wappalyzer = Wappalyzer.latest()
             webpage = WebPage.new_from_url(url)
-            technologies = wappalyzer.analyze(webpage)
-            return technologies
-        except Exception as e:
+            return wappalyzer.analyze(webpage)
+        except:
             return None
     else:
-        # Basic detection from HTTP headers
         try:
-            response = requests.get(url, timeout=5)
-            server = response.headers.get('Server', 'Unknown')
-            powered_by = response.headers.get('X-Powered-By', 'Unknown')
+            r = requests.get(url, timeout=5)
             techs = set()
-            if server != 'Unknown':
-                techs.add(f"Server: {server}")
-            if powered_by != 'Unknown':
-                techs.add(f"X-Powered-By: {powered_by}")
+            if 'Server' in r.headers:
+                techs.add(f"Server: {r.headers['Server']}")
+            if 'X-Powered-By' in r.headers:
+                techs.add(f"X-Powered-By: {r.headers['X-Powered-By']}")
             return techs if techs else None
-        except Exception:
+        except:
             return None
 
+# ------------------- Main Function ------------------- #
 def main():
-    user_input = input("Enter the URL to scan (include http:// or https://): ").strip()
+    if len(sys.argv) < 2:
+        print("Usage: python scanner.py <url>")
+        sys.exit(1)
+
+    user_input = sys.argv[1].strip()
     if not user_input.startswith('http://') and not user_input.startswith('https://'):
         user_input = 'http://' + user_input
 
-    if is_url_suspicious(user_input):
-        print("URL is suspicious or unreachable. Aborting scan.")
-        sys.exit(1)
+    parsed = urlparse(user_input)
+    hostname = parsed.netloc
 
-    parsed_url = urlparse(user_input)
-    hostname = parsed_url.netloc
+    print(f"\n[*] Scanning: {user_input}\n")
+
+    if is_url_suspicious(user_input):
+        print("[!] URL is suspicious or unreachable. Exiting.")
+        sys.exit(1)
 
     ip = get_hosting_ip(hostname)
     if not ip:
-        print("Could not resolve IP address. Aborting.")
+        print("[!] Could not resolve IP address. Exiting.")
         sys.exit(1)
 
-    cert_expiry = None
-    cert_status = "Unknown"
-    if parsed_url.scheme == 'https':
-        cert_expiry = get_certificate_expiry_date(hostname)
-        cert_status = get_certificate_status(cert_expiry)
-
+    dns_info = get_dns_records(hostname)
     hosting_provider = get_hosting_provider(ip)
 
-    technologies = detect_technology(user_input)
+    cert_expiry = get_certificate_expiry_date(hostname) if parsed.scheme == 'https' else None
+    cert_status = get_certificate_status(cert_expiry) if cert_expiry else "Not Applicable"
 
-    print("\nScan Results:")
+    techs = detect_technology(user_input)
+
+    print("---------- Scan Report ----------")
     print(f"URL: {user_input}")
-    print(f"Hosting IP: {ip}")
+    print(f"Resolved IP: {ip}")
     print(f"Hosting Provider: {hosting_provider}")
-    if cert_expiry:
-        print(f"Certificate Expiry Date: {cert_expiry}")
-        print(f"Certificate Status: {cert_status}")
-    else:
-        print("Certificate Expiry Date: Not available or not HTTPS")
-        print("Certificate Status: Not available or not HTTPS")
-    if technologies:
-        print("Technologies Detected:")
-        for tech in technologies:
+    print(f"SSL Certificate Expiry: {cert_expiry if cert_expiry else 'N/A'}")
+    print(f"SSL Certificate Status: {cert_status}")
+    
+    print("\nDNS Records:")
+    for record_type, records in dns_info.items():
+        print(f" {record_type} → {', '.join(records) if records else 'None'}")
+
+    print("\nTechnologies Detected:")
+    if techs:
+        for tech in techs:
             print(f" - {tech}")
     else:
-        print("Technologies Detected: Not available")
+        print(" - No technology info available.")
 
+# ------------------- Execute ------------------- #
 if __name__ == "__main__":
     main()
