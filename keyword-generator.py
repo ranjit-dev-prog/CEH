@@ -1,12 +1,46 @@
+import argparse
 import requests
 from bs4 import BeautifulSoup
-from collections import Counter, defaultdict
+from collections import Counter
 import docx
 import re
 import os
+import heapq
 
 PHISHING_TERMS = {"verify", "account", "login", "password", "reset", "security", "update", "billing", "session", "urgent"}
 BRAND_NAMES = {"facebook", "instagram", "microsoft", "google", "linkedin", "twitter", "amazon"}
+
+# Trie for prefix search
+class TrieNode:
+    def __init__(self):
+        self.children = {}
+        self.is_end = False
+
+class Trie:
+    def __init__(self):
+        self.root = TrieNode()
+
+    def insert(self, word):
+        node = self.root
+        for ch in word:
+            node = node.children.setdefault(ch, TrieNode())
+        node.is_end = True
+
+    def starts_with(self, prefix):
+        node = self.root
+        for ch in prefix:
+            if ch not in node.children:
+                return []
+            node = node.children[ch]
+        return self._collect_words(node, prefix)
+
+    def _collect_words(self, node, prefix):
+        words = []
+        if node.is_end:
+            words.append(prefix)
+        for ch, child in node.children.items():
+            words.extend(self._collect_words(child, prefix + ch))
+        return words
 
 def fetch_text_from_url(url):
     try:
@@ -38,22 +72,15 @@ def read_text_from_file(file_path):
 def score_keywords(text, min_length=4):
     text = text.lower()
     words = re.findall(r'\b[a-z][a-z0-9]{%d,}\b' % min_length, text)
-    positions = {word: i for i, word in enumerate(words)}
     freq = Counter(words)
-    scored = []
+    heap = []
     for word, count in freq.items():
         if word in BRAND_NAMES:
             continue
-        pos_score = 1 - (positions[word] / len(words))
-        score = round((count * 0.7 + pos_score * 0.3), 4)
-        scored.append((word, score))
-    return sorted(scored, key=lambda x: x[1], reverse=True)[:500]
+        heapq.heappush(heap, (-count, word))  # Max-heap behavior
+    return heap
 
-def highlight_phishing_terms(keywords):
-    flagged = [kw for kw, _ in keywords if kw in PHISHING_TERMS]
-    return flagged
-
-def keyword_explorer(source):
+def keyword_explorer(source, prefix=None):
     if os.path.exists(source):
         content = read_text_from_file(source)
     else:
@@ -62,19 +89,35 @@ def keyword_explorer(source):
         print("[⚠️] No content found.")
         return
 
-    print(f"\n✅ Content scanned. Extracting and scoring keywords...\n")
-    top_keywords = score_keywords(content)
-    phishing_hits = highlight_phishing_terms(top_keywords)
+    print(f"\n✅ Content scanned. Extracting keywords...")
+    scored_keywords = score_keywords(content)
 
-    print(f"🔑 Top {len(top_keywords)} Keywords:\n")
-    for i, (kw, score) in enumerate(top_keywords, 1):
-        marker = "⚠️" if kw in PHISHING_TERMS else ""
-        print(f"{i:03}. {kw:<20} | Score: {score:.4f} {marker}")
+    trie = Trie()
+    top_keywords = []
+    for _ in range(min(500, len(scored_keywords))):
+        count, word = heapq.heappop(scored_keywords)
+        trie.insert(word)
+        top_keywords.append((word, -count))
 
-    if phishing_hits:
-        print(f"\n🛑 Phishing Indicators Found: {', '.join(phishing_hits)}")
+    if prefix:
+        print(f"\n🔍 Filtering keywords with prefix: '{prefix}'\n")
+        matched = trie.starts_with(prefix)
+        for i, word in enumerate(matched, 1):
+            print(f"{i:03}. {word}")
+    else:
+        print(f"\n🔑 Top Keywords:\n")
+        for i, (kw, freq) in enumerate(top_keywords, 1):
+            marker = "⚠️" if kw in PHISHING_TERMS else ""
+            print(f"{i:03}. {kw:<20} | Freq: {freq} {marker}")
 
-# 🎯 Usage (CLI-style)
+    flagged = [kw for kw, _ in top_keywords if kw in PHISHING_TERMS]
+    if flagged:
+        print(f"\n🛑 Phishing Indicators Found: {', '.join(flagged)}")
+
 if __name__ == "__main__":
-    source_input = input("📥 Enter a URL or path to .txt/.docx file: ").strip()
-    keyword_explorer(source_input)
+    parser = argparse.ArgumentParser(description="Keyword Generator with DSA")
+    parser.add_argument("source", help="URL or path to .txt/.docx file")
+    parser.add_argument("--prefix", help="Prefix to filter keywords", default=None)
+    args = parser.parse_args()
+
+    keyword_explorer(args.source, args.prefix)
