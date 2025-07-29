@@ -2,7 +2,9 @@ import subprocess
 import socket
 import re
 import requests
+import argparse
 from mac_vendor_lookup import MacLookup
+
 
 def get_wifi_details():
     try:
@@ -23,33 +25,62 @@ def get_wifi_details():
     except Exception as e:
         return {"Error": f"Failed to get Wi-Fi details: {str(e)}"}
 
+
 def get_vendor(mac):
     try:
-        vendor = MacLookup().lookup(mac)
-        return vendor
+        return MacLookup().lookup(mac)
     except:
         return "Unknown Vendor"
 
+
 def scan_ports(ip):
     open_ports = []
-    for port in range(1, 1025):  # Top 1024 ports
+    for port in range(1, 1025):
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(0.5)
-            result = sock.connect_ex((ip, port))
-            if result == 0:
+            if sock.connect_ex((ip, port)) == 0:
                 open_ports.append(port)
             sock.close()
         except:
-            pass
+            continue
     return open_ports
 
+
+def resolve_dns(ip):
+    try:
+        host = socket.gethostbyaddr(ip)
+        return host[0]
+    except socket.herror:
+        return "DNS Not Resolved"
+
+
+def check_http_response(ip):
+    try:
+        url = f"http://{ip}"
+        response = requests.get(url, timeout=3)
+        return {
+            "Status Code": response.status_code,
+            "Server": response.headers.get("Server", "Unknown"),
+            "Content-Type": response.headers.get("Content-Type", "Unknown"),
+            "Content-Length": response.headers.get("Content-Length", "Unknown")
+        }
+    except Exception as e:
+        return {"Error": f"HTTP Request Failed: {str(e)}"}
+
+
+def wps_check_placeholder():
+    print("[!] WPS Vulnerability Scan: Feature not implemented (requires external tools like Reaver)")
+
+
 def main():
-    ip = input("Enter IP address of the access point (e.g., 192.168.1.1): ")
+    parser = argparse.ArgumentParser(description="Wi-Fi Access Point Scanner")
+    parser.add_argument("ip", help="IP address of the access point")
+    args = parser.parse_args()
+    ip = args.ip
 
     print("\n[*] Gathering Wireless Info...\n")
     wifi_info = get_wifi_details()
-
     bssid = wifi_info.get("BSSID", "N/A")
     vendor = get_vendor(bssid) if bssid != "N/A" else "Unknown"
 
@@ -60,15 +91,27 @@ def main():
     print(f"Channel: {wifi_info.get('Channel')}")
     print(f"Radio Type: {wifi_info.get('Radio Type')}")
 
-    print("\n[*] Scanning open ports (top 1024) on IP:", ip)
-    open_ports = scan_ports(ip)
-    print("Open Ports:", open_ports if open_ports else "No open ports found")
+    print("\n[*] Resolving DNS for IP:", ip)
+    dns_name = resolve_dns(ip)
+    print("Resolved DNS Name:", dns_name)
 
-    print("\n[*] WPS Information (Limited on Windows):")
+    print("\n[*] Scanning open ports (top 1024) on:", ip)
+    open_ports = scan_ports(ip)
+    print("Open Ports:", open_ports if open_ports else "None Found")
+
+    print("\n[*] HTTP Headers Check:")
+    http_info = check_http_response(ip)
+    for key, value in http_info.items():
+        print(f"{key}: {value}")
+
+    print("\n[*] WPS Check (Basic):")
     if "WPS" in wifi_info.get("Radio Type", ""):
-        print("WPS may be supported (based on radio type).")
+        print("Possible WPS Support Detected")
     else:
-        print("No WPS info available on Windows through this method.")
+        print("WPS Info Not Detected from Windows Interface")
+
+    wps_check_placeholder()
+
 
 if __name__ == "__main__":
     main()
