@@ -3,6 +3,7 @@ import validators
 import json
 import time
 import urllib.parse
+import sys
 
 # Suspicious keywords list
 SUSPICIOUS_KEYWORDS = [
@@ -68,42 +69,49 @@ def get_api_details(url, method, headers, body):
         return {"error": str(e)}
 
 # ---- RUN ----
-url = input("🔗 Enter API URL to test: ").strip()
-method = input("📥 HTTP Method (GET/POST/PUT/DELETE): ").strip().upper()
-
-headers_input = input("🧾 Add headers as JSON (or leave blank for none): ").strip()
-if headers_input:
-    try:
-        headers = json.loads(headers_input)
-    except json.JSONDecodeError as e:
-        print(f"❌ Invalid header JSON: {e}. Using empty headers.")
+if __name__ == "__main__":
+    # Check for command-line arguments
+    if len(sys.argv) > 1:
+        url = sys.argv[1].strip()
+        method = sys.argv[2].strip().upper() if len(sys.argv) > 2 else "GET"
         headers = {}
-else:
-    headers = {}
-
-body_input = input("📝 Add JSON body (for POST/PUT, or leave blank): ").strip()
-if body_input:
-    try:
-        body = json.loads(body_input)
-    except json.JSONDecodeError as e:
-        print(f"❌ Invalid body JSON: {e}. Using empty body.")
         body = {}
-else:
-    body = {}
+    else:
+        url = input("🔗 Enter API URL to test: ").strip()
+        method = input("📥 HTTP Method (GET/POST/PUT/DELETE): ").strip().upper()
+        headers_input = input("🧾 Add headers as JSON (or leave blank for none): ").strip()
+        if headers_input:
+            try:
+                headers = json.loads(headers_input)
+            except json.JSONDecodeError as e:
+                print(f"❌ Invalid header JSON: {e}. Using empty headers.")
+                headers = {}
+        else:
+            headers = {}
 
-result = {
-    "url": url,
-    "valid_format": validators.url(url),
-    "suspicious": is_suspicious(url),
-    "masked": is_masked(url),
-    "reachable": is_reachable(url),
-    "safe_for_api_test": False
-}
+        body_input = input("📝 Add JSON body (for POST/PUT, or leave blank): ").strip()
+        if body_input:
+            try:
+                body = json.loads(body_input)
+            except json.JSONDecodeError as e:
+                print(f"❌ Invalid body JSON: {e}. Using empty body.")
+                body = {}
+        else:
+            body = {}
 
-if result["valid_format"] and not result["suspicious"] and not result["masked"] and result["reachable"]:
-    result["safe_for_api_test"] = True
-    result["api_test"] = get_api_details(url, method, headers, body)
-else:
-    result["reason"] = "URL is not safe for API testing."
+    result = {
+        "url": url,
+        "valid_format": validators.url(url),
+        "suspicious": is_suspicious(url),
+        "masked": is_masked(url),
+        "reachable": is_reachable(url),
+        "safe_for_api_test": False
+    }
 
-print(json.dumps(result, indent=2))
+    if result["valid_format"] and not result["suspicious"] and not result["masked"] and result["reachable"]:
+        result["safe_for_api_test"] = True
+        result["api_test"] = get_api_details(url, method, headers, body)
+    else:
+        result["reason"] = "URL is not safe for API testing."
+
+    print(json.dumps(result, indent=2))
