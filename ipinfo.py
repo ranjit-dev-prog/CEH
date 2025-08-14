@@ -1,8 +1,21 @@
 import argparse
 import socket
-import requests
 import ipaddress
 from ipwhois import IPWhois
+from urllib.parse import urlparse
+
+def get_ip_from_url(url):
+    try:
+        parsed = urlparse(url)
+        hostname = parsed.hostname if parsed.hostname else url
+        ip = socket.gethostbyname(hostname)
+        print(f"🔗 URL: {url}")
+        print(f"🌐 Hostname: {hostname}")
+        print(f"🔢 IP Address: {ip}")
+        return ip
+    except Exception as e:
+        print(f"❌ Could not resolve IP from URL: {e}")
+        return None
 
 def validate_ip(ip):
     try:
@@ -15,19 +28,6 @@ def validate_ip(ip):
         print("❌ Invalid IP address!")
         return False
 
-def geolocation_info(ip):
-    try:
-        res = requests.get(f"http://ip-api.com/json/{ip}").json()
-        print("\n🌍 Geolocation Info:")
-        lat, lon = res.get('lat'), res.get('lon')
-        for key in ['query', 'country', 'regionName', 'city', 'isp', 'org', 'as', 'lat', 'lon']:
-            print(f"  {key.capitalize()}: {res.get(key)}")
-        if lat and lon:
-            map_link = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
-            print(f"\n🗺️  View on Map: {map_link}")
-    except:
-        print("❌ Error retrieving geolocation.")
-
 def whois_info(ip):
     try:
         obj = IPWhois(ip)
@@ -38,7 +38,8 @@ def whois_info(ip):
         print(f"  Country: {res.get('asn_country_code')}")
         print(f"  Email(s): {res.get('network', {}).get('abuse_emails')}")
     except Exception as e:
-        print("❌ WHOIS failed:", e)
+        print("❌ WHOIS info failed. Reason:", e)
+        print("ℹ️  WHOIS info may not be available for this IP. due to private ip and security issue Continuing...\n")
 
 def reverse_dns(ip):
     try:
@@ -64,15 +65,23 @@ def blacklist_check(ip):
         print("❌ Error checking blacklists:", e)
 
 def main():
-    parser = argparse.ArgumentParser(description="🔍 IP Information Finder")
-    parser.add_argument("ip", help="IP address to analyze")
+    parser = argparse.ArgumentParser(description="🔍 IP/URL Information Finder (No API)")
+    parser.add_argument("target", help="IP address or URL to analyze")
     args = parser.parse_args()
     
-    ip = args.ip
+    target = args.target
+    # Check if input is an IP address
+    try:
+        ipaddress.ip_address(target)
+        ip = target
+    except ValueError:
+        ip = get_ip_from_url(target)
+        if not ip:
+            return
+
     if not validate_ip(ip):
         return
 
-    geolocation_info(ip)
     whois_info(ip)
     reverse_dns(ip)
     blacklist_check(ip)

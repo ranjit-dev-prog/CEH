@@ -5,6 +5,7 @@ import re
 import argparse
 from urllib.parse import urlparse
 import tldextract
+import whois
 
 def get_a_records(domain):
     try:
@@ -26,13 +27,6 @@ def get_ns_records(domain):
     except Exception:
         return []
 
-def get_hosting_provider(ip):
-    try:
-        response = requests.get(f'https://ipinfo.io/{ip}/org', timeout=5)
-        return response.text.strip() if response.status_code == 200 else 'Unknown'
-    except Exception:
-        return 'Unknown'
-
 def is_suspicious_url(url):
     flags = ['@', '.exe', '.zip', 'phishing', 'malware', 'login', 'update', 'verify', 'account', 'bank', 'paypal', 'free', 'click', 'confirm', 'cmd=']
     return any(flag in url.lower() for flag in flags)
@@ -48,6 +42,21 @@ def is_masked_url(url):
 
     if re.search(r'%[0-9a-fA-F]{2}', url): return True
     return False
+
+def get_hosting_provider(ip):
+    try:
+        w = whois.whois(ip)
+        org = w.org or w.name or w.netname or w.responsible or w.address
+        return org if org else "Unknown"
+    except Exception:
+        return "Unknown"
+
+def get_http_headers(url):
+    try:
+        response = requests.get(url, timeout=10)
+        return dict(response.headers)
+    except Exception:
+        return {}
 
 def analyze_url(url):
     if not url.startswith("https://"):
@@ -82,6 +91,11 @@ def analyze_url(url):
     ip = a_records[0] if a_records else None
     hosting = get_hosting_provider(ip) if ip else 'Unknown'
     print(f"🏢 Hosting Provider: {hosting}")
+
+    headers = get_http_headers(url)
+    print(f"\n📝 HTTP Response Headers:")
+    for k, v in headers.items():
+        print(f"  {k}: {v}")
 
     print("\n📊 Risk Summary:")
     risk_status = "Yes" if not mx_records or not ns_records or hosting == 'Unknown' else "No"
