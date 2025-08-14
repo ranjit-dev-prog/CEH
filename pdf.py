@@ -6,6 +6,7 @@ from PIL import Image
 import pandas as pd
 from docx2pdf import convert as docx2pdf_convert
 from fpdf import FPDF
+from pdf2docx import Converter
 
 
 def clean_path(path):
@@ -128,13 +129,10 @@ def text_to_pdf(text_path, output_pdf):
         print(f"Error converting text to PDF: {e}")
 
 
-def docx_to_pdf(docx_path, output_pdf=None):
+def docx_to_pdf(docx_path, output_pdf):
     docx_path = clean_path(docx_path)
-    if output_pdf:
-        output_pdf = clean_path(output_pdf)
+    output_pdf = clean_path(output_pdf)
     try:
-        if output_pdf is None:
-            output_pdf = os.path.splitext(docx_path)[0] + ".pdf"
         docx2pdf_convert(docx_path, output_pdf)
         print(f"DOCX converted to PDF: {output_pdf}")
     except Exception as e:
@@ -142,8 +140,9 @@ def docx_to_pdf(docx_path, output_pdf=None):
 
 
 def pdf_to_docx(pdf_path, output_docx):
-    # Complex: Not implemented
-    print("PDF to DOCX conversion is currently not supported.")
+    cv = Converter(pdf_path)
+    cv.convert(output_docx)
+    cv.close()
 
 
 def csv_to_excel(csv_path, output_xlsx):
@@ -251,26 +250,6 @@ def encrypt_pdf(input_pdf, output_pdf, password):
         print(f"Error encrypting PDF: {e}")
 
 
-def decrypt_pdf(input_pdf, output_pdf, password):
-    input_pdf = clean_path(input_pdf)
-    output_pdf = clean_path(output_pdf)
-    try:
-        reader = PdfReader(input_pdf)
-        if reader.is_encrypted:
-            try:
-                reader.decrypt(password)
-            except Exception:
-                print("Wrong password! Cannot decrypt PDF.")
-                return
-        writer = PdfWriter()
-        for page in reader.pages:
-            writer.add_page(page)
-        with open(output_pdf, "wb") as f:
-            writer.write(f)
-        print(f"PDF decrypted and saved to: {output_pdf}")
-    except Exception as e:
-        print(f"Error decrypting PDF: {e}")
-
 
 def main_menu():
     while True:
@@ -281,8 +260,7 @@ def main_menu():
 3. Merge PDFs
 4. File Conversion
 5. Encrypt PDF (Set Password)
-6. Decrypt PDF (Remove Password)
-7. Exit
+6. Exit
 """)
         choice = input("Choose option (1-7): ").strip()
 
@@ -312,11 +290,6 @@ def main_menu():
             password = input("Enter password to set for PDF: ")
             encrypt_pdf(input_pdf, output_pdf, password)
         elif choice == "6":
-            input_pdf = input("Enter encrypted PDF file path: ")
-            output_pdf = input("Enter output decrypted PDF path: ")
-            password = input("Enter password to unlock PDF: ")
-            decrypt_pdf(input_pdf, output_pdf, password)
-        elif choice == "7":
             print("Goodbye!")
             break
         else:
