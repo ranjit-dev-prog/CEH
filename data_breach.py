@@ -1,7 +1,7 @@
 import time
 import itertools
 import sys
-import random
+import hashlib
 
 # ---------- User Inputs ----------
 email = input("Enter your email: ").strip()
@@ -30,11 +30,79 @@ sites = [
     "wechat.com", "line.me", "kakao.com", "viber.com", "whatsapp.com",
     "openai.com", "huggingface.co", "kaggle.com", "gitlab.com", "bitbucket.org",
     "archive.org", "waybackmachine.org", "duckduckgo.com", "yahoo.com", "bing.com",
-    "google.com", "icloud.com", "protonmail.com", "zoho.com", "mail.com"
+    "google.com", "icloud.com", "protonmail.com", "zoho.com", "mail.com",
+    
+    # Additional 100+ sites
+    # Social Media & Messaging
+    "signal.org", "threads.net", "truthsocial.com", "gab.com", "parler.com",
+    "mastodon.social", "diasporafoundation.org", "ello.co", "vk.com", "xing.com",
+    "nextdoor.com", "care2.com", "couchsurfing.com", "ravelry.com", "mixi.jp",
+    "plurk.com", "renren.com", "douban.com", "weibo.com", "qq.com",
+    "zalo.me", "kik.com", "wickr.com", "threema.ch", "wire.com",
+    
+    # Video & Streaming
+    "dailymotion.com", "vimeo.com", "rumble.com", "odysee.com", "peertube.tv",
+    "caffeine.tv", "bigo.tv", "younow.com", "streamyard.com", "restream.io",
+    "vlive.tv", "afreecatv.com", "niconico.jp", "bilibili.tv", "twitch.tv",
+    
+    # Audio & Music
+    "apple.com/music", "pandora.com", "iheart.com", "deezer.com", "tidal.com",
+    "bandcamp.com", "mixcloud.com", "audiomack.com", "reverbnation.com", "anchor.fm",
+    "spreaker.com", "libsyn.com", "podbean.com", "castbox.fm", "stitcher.com",
+    
+    # Gaming
+    "steampowered.com", "epicgames.com", "origin.com", "gog.com", "ubisoft.com",
+    "roblox.com", "minecraft.net", "nexusmods.com", "moddb.com", "indiedb.com",
+    "gamejolt.com", "itch.io", "kongregate.com", "armorgames.com", "miniclip.com",
+    
+    # Creative & Design
+    "artstation.com", "deviantart.com", "500px.com", "vsco.co", "canva.com",
+    "figma.com", "adobe.com", "notion.so", "miro.com", "trello.com",
+    "asana.com", "basecamp.com", "clickup.com", "airtable.com", "notion.so",
+    
+    # E-commerce & Shopping
+    "walmart.com", "target.com", "bestbuy.com", "newegg.com", "wayfair.com",
+    "overstock.com", "zappos.com", "asos.com", "zalando.com", "poshmark.com",
+    "depop.com", "mercari.com", "offerup.com", "letgo.com", "craigslist.org",
+    
+    # News & Content
+    "substack.com", "ghost.org", "medium.com", "dev.to", "hashnode.com",
+    "news.ycombinator.com", "alltop.com", "feedly.com", "inoreader.com", "flipboard.com",
+    
+    # Education & Learning
+    "brilliant.org", "masterclass.com", "codecademy.com", "freecodecamp.org", "w3schools.com",
+    "sololearn.com", "datacamp.com", "dataquest.io", "treehouse.com", "lynda.com",
+    
+    # Productivity & Tools
+    "dropbox.com", "box.com", "pcloud.com", "mega.nz", "mediafire.com",
+    "wetransfer.com", "sendspace.com", "grammarly.com", "hemingwayapp.com", "notion.so",
+    
+    # Dating
+    "tinder.com", "bumble.com", "hinge.co", "okcupid.com", "match.com",
+    "zoosk.com", "grindr.com", "scruff.com", "her.com", "feeld.co",
+    
+    # Food & Delivery
+    "doordash.com", "ubereats.com", "grubhub.com", "postmates.com", "deliveroo.com",
+    "justeat.co.uk", "swiggy.com", "zomato.com", "opentable.com", "resy.com",
+    
+    # Travel
+    "booking.com", "expedia.com", "kayak.com", "skyscanner.net", "tripadvisor.com",
+    "bookingbuddy.com", "hotels.com", "orbitz.com", "travelocity.com", "agoda.com",
+    
+    # Health & Fitness
+    "myfitnesspal.com", "strava.com", "fitbit.com", "runkeeper.com", "endomondo.com",
+    "mapmyrun.com", "headspace.com", "calm.com", "noom.com", "peloton.com",
+    
+    # Finance
+    "paypal.com", "venmo.com", "cash.app", "zellepay.com", "revolut.com",
+    "transferwise.com", "robinhood.com", "coinbase.com", "binance.com", "kraken.com",
+    
+    # Cloud & Storage
+    "google.com/drive", "icloud.com", "onedrive.live.com", "mega.nz", "pcloud.com",
+    "dropbox.com", "box.com", "sync.com", "tresorit.com", "spideroak.com"
 ]
-
 # ---------- Loader ----------
-def loader_running(duration=5):
+def loader_running(duration=0.3):
     spinner = itertools.cycle(['|', '/', '-', '\\'])
     end_time = time.time() + duration
     while time.time() < end_time:
@@ -43,22 +111,30 @@ def loader_running(duration=5):
         time.sleep(0.1)
         sys.stdout.write('\b')
 
-# ---------- Fake Scan ----------
+# ---------- Deterministic Fake Scan ----------
+def credential_found(site, target):
+    """Hash site+target -> decide deterministically if 'found'"""
+    h = hashlib.sha256((site + target).encode()).hexdigest()
+    return int(h, 16) % 7 == 0   # ~1 in 7 chance
+
 print("\n[INFO] Starting OSINT credential scan...\n")
 alerts = []
 
 for site in sites:
     print(f"[INFO] Scanning {site} ... ", end="")
-    loader_running(0.5)  # show loader for half second
+    loader_running(0.3)  # short loader
     
-    # Fake detection: 20% chance of "found"
-    if random.random() < 0.2:
-        key, value = random.choice(list(targets.items()))
-        msg = f"[ALERT] {key} '{value}' found on {site}"
-        print("FOUND!")
-        print("   " + msg)
-        alerts.append(msg)
-    else:
+    found = False
+    for key, value in targets.items():
+        if credential_found(site, value):
+            msg = f"[ALERT] {key} '{value}' found on {site}"
+            print("FOUND!")
+            print("   " + msg)
+            alerts.append(msg)
+            found = True
+            break
+    
+    if not found:
         print("SAFE")
 
 # ---------- Final Message ----------
