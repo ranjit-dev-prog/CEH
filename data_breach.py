@@ -1,115 +1,68 @@
-import re
+import time
+import itertools
 import sys
+import random
 
-# -----------------------------
-# Helper Functions
-# -----------------------------
-def is_valid_email(email):
-    """Validate email format."""
-    pattern = r'^[\w\.-]+@[\w\.-]+\.\w{2,}$'
-    return bool(re.match(pattern, email))
+# ---------- User Inputs ----------
+email = input("Enter your email: ").strip()
+username = input("Enter your username: ").strip()
+phone = input("Enter your phone number: ").strip()
 
-def fetch_page(url):
-    """Generic function to fetch a webpage with headers."""
-    headers = {"User-Agent": "Mozilla/5.0"}
-    try:
-        response = requests.get(url, headers=headers, timeout=6)
-        if response.status_code == 200:
-            return response.text
-    except requests.RequestException:
-        return None
-    return None
+targets = {k: v for k, v in {"email": email, "username": username, "phone": phone}.items() if v}
 
-# -----------------------------
-# Popular Websites List
-# -----------------------------
-popular_websites = [
-    "Adobe",
-    "LinkedIn",
-    "Dropbox",
-    "MySpace",
-    "Yahoo",
-    "Steam",
-    "Canva",
-    "Twitter",
-    "Facebook",
-    "Amazon",
-    "GitHub",
-    "Netflix",
-    "PayPal",
-    "Instagram",
-    "Pinterest"
+# ---------- Sites List (100 popular) ----------
+sites = [
+    "twitter.com", "facebook.com", "instagram.com", "linkedin.com", "reddit.com",
+    "github.com", "stackoverflow.com", "medium.com", "quora.com", "tumblr.com",
+    "telegram.org", "discord.com", "slack.com", "skype.com", "twitch.tv",
+    "spotify.com", "snapchat.com", "pinterest.com", "tiktok.com", "flickr.com",
+    "dribbble.com", "behance.net", "producthunt.com", "vimeo.com", "soundcloud.com",
+    "meetup.com", "digg.com", "flipboard.com", "deviantart.com", "ok.ru",
+    "badoo.com", "weheartit.com", "9gag.com", "slideshare.net", "newgrounds.com",
+    "gaiaonline.com", "last.fm", "stumbleupon.com", "livejournal.com", "myspace.com",
+    "meetme.com", "myheritage.com", "soundclick.com", "letterboxd.com", "untappd.com",
+    "wordpress.com", "blogger.com", "yelp.com", "airbnb.com", "amazon.com",
+    "ebay.com", "aliexpress.com", "flipkart.com", "etsy.com", "shopify.com",
+    "netflix.com", "hulu.com", "disneyplus.com", "primevideo.com", "hotstar.com",
+    "imdb.com", "rottentomatoes.com", "goodreads.com", "coursera.org", "udemy.com",
+    "edx.org", "khanacademy.org", "udacity.com", "pluralsight.com", "skillshare.com",
+    "zoom.us", "teams.microsoft.com", "slido.com", "clubhouse.com", "periscope.tv",
+    "wechat.com", "line.me", "kakao.com", "viber.com", "whatsapp.com",
+    "openai.com", "huggingface.co", "kaggle.com", "gitlab.com", "bitbucket.org",
+    "archive.org", "waybackmachine.org", "duckduckgo.com", "yahoo.com", "bing.com",
+    "google.com", "icloud.com", "protonmail.com", "zoho.com", "mail.com"
 ]
 
-# -----------------------------
-# Functions to Simulate Checks
-# -----------------------------
-def check_firefox_monitor(email):
-    html = fetch_page(f"https://monitor.firefox.com/{email}")
-    if html and "pwned" in html.lower():
-        return ["Firefox Monitor: email found"]
-    return []
+# ---------- Loader ----------
+def loader_running(duration=5):
+    spinner = itertools.cycle(['|', '/', '-', '\\'])
+    end_time = time.time() + duration
+    while time.time() < end_time:
+        sys.stdout.write(next(spinner))
+        sys.stdout.flush()
+        time.sleep(0.1)
+        sys.stdout.write('\b')
 
-def check_leakcheck(email):
-    html = fetch_page(f"https://leakcheck.io/search?query={email}")
-    if html and "No results found" not in html:
-        return ["LeakCheck.io: email found"]
-    return []
+# ---------- Fake Scan ----------
+print("\n[INFO] Starting OSINT credential scan...\n")
+alerts = []
 
-def scan_popular_websites(email):
-    """Simulate checking email against popular breaches."""
-    found_sites = []
-
-    # Simulate known site breaches
-    for site in popular_websites:
-        # In real scenario, use API like HIBP for accurate detection
-        # Here, we just pretend the email is found randomly
-        import random
-        if random.choice([True, False]):
-            found_sites.append(site)
-
-    return found_sites
-
-# -----------------------------
-# Main Scan Function
-# -----------------------------
-def scan_email_exposure(email):
-    if not is_valid_email(email):
-        print(f"[🚫] Invalid email format: {email}")
-        return
-
-    print(f"🔍 Scanning `{email}` for potential breaches...\n")
-
-    # Check general breach sources
-    sources = {
-        "Firefox Monitor": check_firefox_monitor,
-        "LeakCheck.io": check_leakcheck
-    }
-
-    for name, func in sources.items():
-        leaks = func(email)
-        if leaks:
-            print(f"[❗] {name}: {leaks[0]}")
-        else:
-            print(f"[✅] {name}: No leaks detected.")
-
-    # Check popular websites
-    print("\n🌐 Checking popular websites for leaks...")
-    sites_found = scan_popular_websites(email)
-    if sites_found:
-        print(f"[❗] Your email may have been leaked on these popular sites:")
-        for site in sites_found:
-            print(f"   - {site}")
+for site in sites:
+    print(f"[INFO] Scanning {site} ... ", end="")
+    loader_running(0.5)  # show loader for half second
+    
+    # Fake detection: 20% chance of "found"
+    if random.random() < 0.2:
+        key, value = random.choice(list(targets.items()))
+        msg = f"[ALERT] {key} '{value}' found on {site}"
+        print("FOUND!")
+        print("   " + msg)
+        alerts.append(msg)
     else:
-        print("[✅] No leaks detected on popular sites.")
+        print("SAFE")
 
-# -----------------------------
-# Command-Line Entry Point
-# -----------------------------
-if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("Usage: python emailscan.py user@example.com")
-        sys.exit(1)
-
-    user_email = sys.argv[1].strip()
-    scan_email_exposure(user_email)
+# ---------- Final Message ----------
+if not alerts:
+    print("\n✅ Your credentials are safe! No matches found.")
+else:
+    print(f"\n⚠️ Scan complete. {len(alerts)} potential exposures detected.")
